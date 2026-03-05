@@ -88,7 +88,7 @@ This template uses a modern Flask + React architecture:
 
 ### How It Works
 
-1. During development, React runs on its own dev server (port 5173) and proxies API calls to Flask (port 5000)
+1. During development, React runs on its own dev server (port 5173) and proxies API calls to Flask (port 5001 locally; 5000 on the server)
 2. In production, React is built into static files and Flask serves both the React app and API endpoints
 3. Flask routes all non-API requests to `index.html`, enabling React Router to work properly
 
@@ -188,7 +188,7 @@ This runs both Flask and React in development mode with hot-reloading.
    python app.py
    ```
    
-   The Flask API will run on `http://localhost:5000`
+   The Flask API will run on `http://localhost:5001`
 
 #### Step 2: Set up React Frontend
 
@@ -232,7 +232,7 @@ This builds the React app and serves it through Flask, similar to production.
    python app.py
    ```
 
-4. Open your browser to `http://localhost:5000`
+4. Open your browser to `http://localhost:5001`
 
 ### Modifying the Data
 
