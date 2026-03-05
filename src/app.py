@@ -1,15 +1,21 @@
 import json
 import os
+from dotenv import load_dotenv
 from flask import Flask
+
+load_dotenv()
 from flask_cors import CORS
 from models import db, Episode, Review
 from routes import register_routes
 
-# Get the directory of the current script
+# src/ directory and project root (one level up)
 current_directory = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_directory)
 
-# Serve React build files
-app = Flask(__name__, static_folder='frontend/dist', static_url_path='')
+# Serve React build files from <project_root>/frontend/dist
+app = Flask(__name__,
+    static_folder=os.path.join(project_root, 'frontend', 'dist'),
+    static_url_path='')
 CORS(app)
 
 # Configure SQLite database - using 3 slashes for relative path

@@ -1,31 +1,31 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import SearchIcon from './assets/mag.png'
 import { Episode } from './types'
+import Chat from './Chat'
 
 function App(): JSX.Element {
+  const [useLlm, setUseLlm] = useState<boolean | null>(null)
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [episodes, setEpisodes] = useState<Episode[]>([])
 
+  useEffect(() => {
+    fetch('/api/config').then(r => r.json()).then(data => setUseLlm(data.use_llm))
+  }, [])
+
   const handleSearch = async (value: string): Promise<void> => {
     setSearchTerm(value)
-    
-    if (value.trim() === '') {
-      setEpisodes([])
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/episodes?title=${encodeURIComponent(value)}`)
-      const data: Episode[] = await response.json()
-      setEpisodes(data)
-    } catch (error) {
-      console.error('Error fetching episodes:', error)
-    }
+    if (value.trim() === '') { setEpisodes([]); return }
+    const response = await fetch(`/api/episodes?title=${encodeURIComponent(value)}`)
+    const data: Episode[] = await response.json()
+    setEpisodes(data)
   }
 
+  if (useLlm === null) return <></>
+
   return (
-    <div className="full-body-container">
+    <div className={`full-body-container ${useLlm ? 'llm-mode' : ''}`}>
+      {/* Search bar (always shown) */}
       <div className="top-text">
         <div className="google-colors">
           <h1 id="google-4">4</h1>
@@ -43,6 +43,8 @@ function App(): JSX.Element {
           />
         </div>
       </div>
+
+      {/* Search results (always shown) */}
       <div id="answer-box">
         {episodes.map((episode, index) => (
           <div key={index} className="episode-item">
@@ -52,6 +54,9 @@ function App(): JSX.Element {
           </div>
         ))}
       </div>
+
+      {/* Chat (only when USE_LLM = True in routes.py) */}
+      {useLlm && <Chat onSearchTerm={handleSearch} />}
     </div>
   )
 }
