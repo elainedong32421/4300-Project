@@ -24,7 +24,7 @@ function App(): JSX.Element {
   if (useLlm === null) return <></>
 
   return (
-    <div className={`full-body-container ${useLlm ? 'llm-mode' : ''}`}>
+    <div className={`full-body-container ${useLlm ? 'llm-mode' : ''} ${episodes.length > 0 ? 'has-results' : ''}`}>
       {/* Search bar (always shown) */}
       <div className="top-text">
         <h1 className="brain-rot-title">Brain rot</h1>
