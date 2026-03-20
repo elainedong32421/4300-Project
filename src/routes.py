@@ -8,8 +8,9 @@ import re
 
 import numpy as np
 from flask import send_from_directory, request, jsonify
+from streamlit import text
 
-from models import db, Episode, Review
+from models import db, AitaPost 
 
 # ── AI toggle ────────────────────────────────────────────────────────────────
 USE_LLM = False
@@ -20,8 +21,8 @@ USE_LLM = False
 _tfidf_cache = None
 
 
-def _episode_text(episode, review):
-    return f"{episode.title} {episode.descr}"
+def _post_text(post):
+    return f"{post.title} {post.selftext}"
 
 
 def _tokenize(text):
@@ -74,31 +75,28 @@ def _query_tfidf_l2(tokenized_q, token_to_idx, idf):
 
 def _tfidf_index():
     global _tfidf_cache
-    n = Episode.query.count()
+    n = AitaPost.query.count()
     if _tfidf_cache is not None and _tfidf_cache[0] == n:
         return _tfidf_cache[1], _tfidf_cache[2], _tfidf_cache[3], _tfidf_cache[4]
 
-    pairs = (
-        db.session.query(Episode, Review)
-        .join(Review, Episode.id == Review.id)
-        .all()
-    )
-    if not pairs:
+    posts = AitaPost.query.all()
+
+    if not posts:
         _tfidf_cache = (0, None, None, None, [])
         return None, None, None, []
 
-    tokenized = [_tokenize(_episode_text(ep, rev)) for ep, rev in pairs]
+    tokenized = [_tokenize(_post_text(post)) for post in posts]
     token_to_idx, idf, X = _build_tfidf_l2_rows(tokenized)
-    _tfidf_cache = (n, token_to_idx, idf, X, pairs)
-    return token_to_idx, idf, X, pairs
+    _tfidf_cache = (n, token_to_idx, idf, X, posts)
+    return token_to_idx, idf, X, posts
 
 
 def json_search(query):
     if not query or not query.strip():
-        query = "Kardashian"
+        return []
 
-    token_to_idx, idf, X, pairs = _tfidf_index()
-    if not pairs or token_to_idx is None or idf.size == 0:
+    token_to_idx, idf, X, posts = _tfidf_index()
+    if not posts or token_to_idx is None or idf.size == 0:
         return []
 
     q = _query_tfidf_l2(_tokenize(query), token_to_idx, idf)
@@ -106,13 +104,16 @@ def json_search(query):
     order = np.argsort(sims)[::-1]
 
     matches = []
-    for idx in order:
-        episode, review = pairs[int(idx)]
+    for idx in order[:20]:
+        post = posts[int(idx)]
         matches.append(
             {
-                "title": episode.title,
-                "descr": episode.descr,
-                "imdb_rating": review.imdb_rating,
+                "id": post.id,
+                "submission_id": post.submission_id,
+                "title": post.title,
+                "selftext": post.selftext,
+                "score": post.score,
+                "similarity": float(sims[int(idx)]),
             }
         )
     return matches
@@ -131,9 +132,9 @@ def register_routes(app):
     def config():
         return jsonify({"use_llm": USE_LLM})
 
-    @app.route("/api/episodes")
-    def episodes_search():
-        text = request.args.get("title", "")
+    @app.route("/api/search")
+    def search():
+        text = request.args.get("query", "")
         return jsonify(json_search(text))
 
     if USE_LLM:
