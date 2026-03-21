@@ -11,7 +11,7 @@ from routes import register_routes
 
 # src/ directory and project root (one level up)
 current_directory = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_directory)
 
 # Serve React build files from <project_root>/frontend/dist
 app = Flask(__name__,
