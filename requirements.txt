@@ -6,4 +6,5 @@ Werkzeug==2.2.2
 gunicorn
 python-dotenv
 numpy>=1.24.0
+streamlit
 git+https://github.com/MrPeterss/infosci-spark-client.git
