@@ -8,7 +8,7 @@ import re
 
 import numpy as np
 from flask import send_from_directory, request, jsonify
-from streamlit import text
+#from streamlit import text
 
 from models import db, AitaPost 
 
