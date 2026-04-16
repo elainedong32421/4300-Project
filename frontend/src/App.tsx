@@ -22,8 +22,9 @@ function App(): JSX.Element {
       setPosts([])
       return
     }
+    const methodParam = searchMethod === 'TF-IDF' ? 'tfidf' : 'svd'
     const response = await fetch(
-    `/api/search?query=${encodeURIComponent(value)}&method=${searchMethod.toLowerCase()}`
+      `/api/search?query=${encodeURIComponent(value)}&method=${methodParam}`
     )
     const data: AitaPost[] = await response.json()
     setPosts(data)
@@ -54,6 +55,7 @@ function App(): JSX.Element {
               placeholder="Search for an r/AITA post!"
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(searchTerm) }}
           />
         </div>
         <div className="method-toggle">

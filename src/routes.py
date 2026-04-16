@@ -50,7 +50,8 @@ def _build_tfidf_l2_rows(tokenized_docs):
     vocab = sorted({t for doc in tokenized_docs for t in doc})
     V = len(vocab)
     if V == 0:
-        return {}, np.array([], dtype=np.float64), np.zeros((n_docs, 0), dtype=np.float64)
+        z = np.zeros((n_docs, 0), dtype=np.float64)
+        return {}, np.array([], dtype=np.float64), z, z
 
     token_to_idx = {t: i for i, t in enumerate(vocab)}
     C = np.zeros((n_docs, V), dtype=np.float64)
@@ -87,10 +88,52 @@ def _query_tfidf_l2(tokenized_q, token_to_idx, idf):
     return q
 
 def _build_svd(X_raw, k=40):
-    k = min(k, min(X_raw.shape) - 1)
-    docs_compressed, s, words_compressed = svds(csr_matrix(X_raw), k=k)
+    """Truncated SVD on TF–IDF weights; safe rank-1 factors if the matrix is degenerate."""
+    n_rows, n_cols = X_raw.shape
+    if n_cols == 0:
+        return (
+            np.zeros((n_rows, 0), dtype=np.float64),
+            np.zeros((0, 0), dtype=np.float64),
+        )
+    max_k = min(n_rows, n_cols) - 1
+    if max_k < 1:
+        # min(n,m)==1: full np.eye(V) would be huge when one doc has many terms — rank-1 factors instead.
+        if n_rows == 1:
+            v = X_raw[0].astype(np.float64, copy=False)
+            nv = np.linalg.norm(v)
+            words = (v / nv).reshape(-1, 1) if nv > 0 else np.zeros((n_cols, 1))
+            docs = np.array([[1.0]], dtype=np.float64)
+            return normalize(docs), normalize(words)
+        if n_cols == 1:
+            v = X_raw[:, 0].astype(np.float64, copy=False)
+            nv = np.linalg.norm(v)
+            docs = (v / nv).reshape(-1, 1) if nv > 0 else np.zeros((n_rows, 1))
+            words = np.array([[1.0]], dtype=np.float64)
+            return normalize(docs), normalize(words)
+        raise RuntimeError("SVD fallback: unexpected matrix shape")
+
+    k = min(k, max_k)
+    docs_compressed = None
+    words_compressed = None
+    k_try = k
+    while k_try >= 1:
+        try:
+            docs_compressed, _s, words_compressed = svds(
+                csr_matrix(X_raw), k=k_try
+            )
+            break
+        except Exception:
+            k_try -= 1
+    if docs_compressed is None:
+        U, _s, Vt = np.linalg.svd(X_raw, full_matrices=False)
+        kk = min(k, U.shape[1])
+        docs_compressed = U[:, :kk]
+        words_compressed = Vt[:kk, :].T
+        return normalize(docs_compressed), normalize(words_compressed)
+
+    # svds returns singular values in ascending order; flip to match largest-first latent dims
     docs_compressed = docs_compressed[:, ::-1]
-    words_compressed = words_compressed[::-1, :].T  # (V, k)
+    words_compressed = words_compressed[::-1, :].T
     return normalize(docs_compressed), normalize(words_compressed)
 
 
@@ -111,20 +154,19 @@ def _query_svd(tokenized_q, token_to_idx, idf, words_normed):
 
 def _tfidf_index():
     global _tfidf_cache
-    n = AitaPost.query.count()
-    if _tfidf_cache is not None and _tfidf_cache[0] == n:
-        return _tfidf_cache[1:]
+    if _tfidf_cache is not None:
+        return _tfidf_cache
 
-    posts = AitaPost.query.all()
-    if not posts:
-        _tfidf_cache = (0, None, None, None, None, None, [])
-        return None, None, None, None, None, []
+    token_to_idx, idf, X, posts_meta = _load_index()
 
-    tokenized = [_tokenize(_post_text(post)) for post in posts]
-    token_to_idx, idf, X_normed, X_raw = _build_tfidf_l2_rows(tokenized)
-    docs_svd_normed, words_svd_normed = _build_svd(X_raw)
-    _tfidf_cache = (n, token_to_idx, idf, X_normed, docs_svd_normed, words_svd_normed, posts)
-    return token_to_idx, idf, X_normed, docs_svd_normed, words_svd_normed, posts
+    X_dense = X.toarray()
+    norms = np.linalg.norm(X_dense, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1.0, norms)
+    X_normed = X_dense / norms
+
+    docs_svd_normed, words_svd_normed = _build_svd(X_dense)
+    _tfidf_cache = (token_to_idx, idf, X_normed, docs_svd_normed, words_svd_normed, posts_meta)
+    return _tfidf_cache
 
 
 def json_search(query, method='svd'):
@@ -133,6 +175,8 @@ def json_search(query, method='svd'):
 
     token_to_idx, idf, X_normed, docs_svd_normed, words_svd_normed, posts = _tfidf_index()
     if not posts or token_to_idx is None:
+        return []
+    if not token_to_idx or np.asarray(idf).size == 0:
         return []
 
     tokens = _tokenize(query)
@@ -147,14 +191,24 @@ def json_search(query, method='svd'):
     matches = []
     for idx in order[:20]:
         post = posts[int(idx)]
-        matches.append({
-            "id": post.id,
-            "submission_id": post.submission_id,
-            "title": post.title,
-            "selftext": post.selftext,
-            "score": post.score,
-            "similarity": float(sims[int(idx)]),
-        })
+        if isinstance(post, dict):
+            matches.append({
+                "id": post.get("id"),
+                "submission_id": post.get("submission_id"),
+                "title": post.get("title"),
+                "selftext": post.get("selftext"),
+                "score": post.get("score"),
+                "similarity": float(sims[int(idx)]),
+            })
+        else:
+            matches.append({
+                "id": post.id,
+                "submission_id": post.submission_id,
+                "title": post.title,
+                "selftext": post.selftext,
+                "score": post.score,
+                "similarity": float(sims[int(idx)]),
+            })
     return matches
 
 
