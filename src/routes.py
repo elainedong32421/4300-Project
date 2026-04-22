@@ -1,7 +1,7 @@
 """
 Routes: React app serving and episode search API.
 
-To enable AI chat, set USE_LLM = True below. See llm_routes.py for AI code.
+Set SPARK_API_KEY in .env to enable AI chat routes.
 """
 import os
 import re
@@ -20,10 +20,7 @@ def _l2_normalize_rows(X):
 
 from models import db, AitaPost
 
-# ── AI toggle ────────────────────────────────────────────────────────────────
-# USE_LLM = False
-USE_LLM = True
-# ─────────────────────────────────────────────────────────────────────────────
+USE_LLM = bool(os.getenv("SPARK_API_KEY"))
 
 _index = None  # loaded once from disk
 _tfidf_cache = None
@@ -166,11 +163,14 @@ def _tfidf_index():
         return _tfidf_cache
 
     token_to_idx, idf, X, posts_meta = _load_index()
+    X = X.tocsr()
 
-    X_dense = X.toarray()
-    norms = np.linalg.norm(X_dense, axis=1, keepdims=True)
-    norms = np.where(norms == 0, 1.0, norms)
-    X_normed = X_dense / norms
+    # Keep the precomputed TF-IDF matrix sparse. Converting it to a dense
+    # array spikes memory into multi-GB territory and gets the Flask process
+    # killed during the first search on many laptops.
+    row_norms = np.sqrt(X.multiply(X).sum(axis=1)).A1
+    row_norms = np.where(row_norms == 0.0, 1.0, row_norms)
+    X_normed = X.multiply(1.0 / row_norms[:, np.newaxis]).tocsr()
 
     # Load SVD from disk if available, else compute and save
     if _SVD_NPZ and os.path.exists(_SVD_NPZ):
@@ -178,7 +178,7 @@ def _tfidf_index():
         docs_svd_normed = saved['docs']
         words_svd_normed = saved['words']
     else:
-        docs_svd_normed, words_svd_normed = _build_svd(X_dense)
+        docs_svd_normed, words_svd_normed = _build_svd(X.toarray())
         if _SVD_NPZ:
             np.savez_compressed(_SVD_NPZ, docs=docs_svd_normed, words=words_svd_normed)
 
@@ -250,10 +250,14 @@ def register_routes(app):
     @app.route('/', defaults={'path': ''}, methods=['GET'])
     @app.route('/<path:path>', methods=['GET'])
     def serve(path):
-        if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        if app.static_folder and path != "" and os.path.exists(os.path.join(app.static_folder, path)):
             return send_from_directory(app.static_folder, path)
-        else:
+        if app.static_folder and os.path.exists(os.path.join(app.static_folder, 'index.html')):
             return send_from_directory(app.static_folder, 'index.html')
+        return jsonify({
+            "message": "Frontend build not found. Run `npm run dev` in `frontend/` for local development or build the frontend first.",
+            "use_llm": USE_LLM,
+        }), 503
 
     @app.route("/api/config")
     def config():

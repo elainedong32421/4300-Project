@@ -190,6 +190,15 @@
   padding: 0 1rem;
 }
 
+.search-error-card {
+  padding: 0.9rem 1rem;
+  background: #3a1f1f;
+  border: 1px solid #8f3a3a;
+  color: #ffd7d7;
+  border-radius: 10px;
+  font-family: 'Open Sans', sans-serif;
+}
+
 .episode-item {
   padding: 1.5rem;
   background-color: #f8f9fa;
@@ -427,5 +436,4 @@
   border-radius: 4px;
   margin-bottom: 6px;
   letter-spacing: 0.05em;
-}
 }

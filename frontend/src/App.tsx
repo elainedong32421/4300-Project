@@ -23,27 +23,60 @@ interface RagState {
 const RAG_IDLE: RagState = { rewrittenQuery: null, answer: '', loading: false, step: 'idle' }
 
 function App(): JSX.Element {
-  const [useLlm, setUseLlm] = useState<boolean | null>(null)
+  const [useLlm, setUseLlm] = useState<boolean>(true)
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [posts, setPosts] = useState<AitaPost[]>([])
   const [method, setMethod] = useState<SearchMethod>('SVD')
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>(null)
   const [rag, setRag] = useState<RagState>(RAG_IDLE)
+  const [errorMessage, setErrorMessage] = useState<string>('')
 
   useEffect(() => {
-    fetch('/api/config').then(r => r.json()).then(d => setUseLlm(d.use_llm))
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(d => setUseLlm(Boolean(d.use_llm)))
+      .catch(() => {
+        // Keep the RAG button visible even if config can't be loaded yet.
+        setUseLlm(true)
+      })
   }, [])
 
   const runIrSearch = async (value: string, m: SearchMethod, vf: VerdictFilter) => {
     const mp = m === 'TF-IDF' ? 'tfidf' : 'svd'
     const vp = vf ? `&verdict=${encodeURIComponent(vf)}` : ''
-    const res = await fetch(`/api/search?query=${encodeURIComponent(value)}&method=${mp}${vp}`)
-    setPosts(await res.json())
+    setErrorMessage('')
+
+    try {
+      const res = await fetch(`/api/search?query=${encodeURIComponent(value)}&method=${mp}${vp}`)
+      if (!res.ok) {
+        throw new Error(`Search request failed (${res.status})`)
+      }
+
+      const data = await res.json()
+      setPosts(data)
+
+      if (!Array.isArray(data) || data.length === 0) {
+        setErrorMessage('No posts matched that search yet. Try a broader keyword.')
+      }
+    } catch {
+      setPosts([])
+      setErrorMessage('Search could not reach the backend. Make sure Flask is running on port 5001.')
+    }
   }
 
   const runRagSearch = async (value: string) => {
     setRag({ ...RAG_IDLE, loading: true, step: 'rewriting' })
     setPosts([])
+    setErrorMessage('')
+
+    if (!useLlm) {
+      setRag({
+        ...RAG_IDLE,
+        answer: 'RAG is available in the UI, but the backend does not have SPARK_API_KEY configured yet.',
+        step: 'done',
+      })
+      return
+    }
 
     try {
       const res = await fetch('/api/rag', {
@@ -102,6 +135,7 @@ function App(): JSX.Element {
     if (value.trim() === '') {
       setPosts([])
       setRag(RAG_IDLE)
+      setErrorMessage('')
       return
     }
     if (m === 'RAG') {
@@ -123,8 +157,6 @@ function App(): JSX.Element {
     setVerdictFilter(next)
     if (searchTerm.trim()) handleSearch(searchTerm, method, next)
   }
-
-  if (useLlm === null) return <></>
 
   const hasResults = posts.length > 0 || rag.step !== 'idle'
 
@@ -171,14 +203,12 @@ function App(): JSX.Element {
               <div className="toggle-buttons">
                 <button className={method === 'SVD' ? 'active' : ''} onClick={() => handleMethodChange('SVD')}>SVD</button>
                 <button className={method === 'TF-IDF' ? 'active' : ''} onClick={() => handleMethodChange('TF-IDF')}>TF-IDF</button>
-                {useLlm && (
-                  <button
-                    className={method === 'RAG' ? 'active rag-btn' : 'rag-btn'}
-                    onClick={() => handleMethodChange('RAG')}
-                  >
-                    RAG
-                  </button>
-                )}
+                <button
+                  className={method === 'RAG' ? 'active rag-btn' : 'rag-btn'}
+                  onClick={() => handleMethodChange('RAG')}
+                >
+                  RAG
+                </button>
               </div>
             </div>
           </div>
@@ -210,6 +240,11 @@ function App(): JSX.Element {
 
         {/* ── Results area ── */}
         <div id="answer-box">
+          {errorMessage && (
+            <div className="search-error-card">
+              {errorMessage}
+            </div>
+          )}
 
           {/* RAG step indicator */}
           {rag.loading && (
