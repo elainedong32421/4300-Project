@@ -39,26 +39,32 @@ register_routes(app)
 # Function to initialize database, change this to your own database initialization logic
 def init_db():
    with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
+        except Exception:
+            pass
 
         if AitaPost.query.count() == 0:
-            csv_file_path = os.path.join(project_root, 'data', 'AITA_clean1.csv')
+            try:
+                csv_file_path = os.path.join(project_root, 'data', 'AITA_clean1.csv')
 
-            with open(csv_file_path, 'r', encoding='utf-8', newline='') as file:
-                reader = csv.DictReader(file)
+                with open(csv_file_path, 'r', encoding='utf-8', newline='') as file:
+                    reader = csv.DictReader(file)
 
-                for row in reader:
-                    post = AitaPost(
-                        id=int(row['id']) if row['id'] else None,
-                        submission_id=row['submission_id'],
-                        title=row['title'],
-                        selftext=row['selftext'],
-                        score=int(row['score']) if row['score'] else 0
-                    )
-                    db.session.add(post)
+                    for row in reader:
+                        post = AitaPost(
+                            id=int(row['id']) if row['id'] else None,
+                            submission_id=row['submission_id'],
+                            title=row['title'],
+                            selftext=row['selftext'],
+                            score=int(row['score']) if row['score'] else 0
+                        )
+                        db.session.add(post)
 
-                db.session.commit()
-                print("Loaded AITA CSV into database")
+                    db.session.commit()
+                    print("Loaded AITA CSV into database")
+            except Exception:
+                db.session.rollback()
 init_db()
 
 if __name__ == '__main__':

@@ -9,6 +9,8 @@ Registers two endpoints:
 import json
 import os
 import logging
+import socket
+import requests
 from flask import request, jsonify, Response, stream_with_context
 from infosci_spark_client import LLMClient
 
@@ -38,7 +40,9 @@ def _make_client():
     api_key = os.getenv("SPARK_API_KEY")
     if not api_key:
         return None, "SPARK_API_KEY not set in .env"
-    return LLMClient(api_key=api_key), None
+    # Set a global socket timeout so LLM calls never hang indefinitely
+    socket.setdefaulttimeout(60)
+    return LLMClient(api_key=api_key.strip()), None
 
 
 def register_llm_search_route(app, json_search):
@@ -123,7 +127,9 @@ def register_llm_search_route(app, json_search):
                 rewritten_query = (rewrite_resp.get("content") or user_query).strip()
             except Exception as e:
                 logger.error(f"Rewrite error: {e}")
-                rewritten_query = user_query
+                yield f"data: {json.dumps({'error': f'LLM error: {e}'})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                return
 
             yield f"data: {json.dumps({'rewritten_query': rewritten_query})}\n\n"
 
