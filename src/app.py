@@ -56,5 +56,11 @@ def init_db():
                 print("Loaded AITA CSV into database")
 init_db()
 
+# Warm up the search index at startup so first request isn't slow
+from routes import _tfidf_index
+print("Warming up search index...")
+_tfidf_index()
+print("Index ready.")
+
 if __name__ == '__main__':
     app.run(debug=False, host="0.0.0.0", port=5001)
