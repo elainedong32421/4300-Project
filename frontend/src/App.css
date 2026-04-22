@@ -227,6 +227,66 @@
   font-weight: 600;
 }
 
+/* SVD-only: latent dimension tags (not used for TF-IDF or RAG in App.tsx) */
+.svd-latent-tags {
+  margin-top: 0.65rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #d2d7de;
+}
+
+.svd-latent-tags-heading {
+  display: block;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b6470;
+  margin-bottom: 0.4rem;
+}
+
+.svd-latent-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.svd-latent-tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: #e8f0fe;
+  border: 1px solid #c3d4f5;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: #1a3d6e;
+}
+
+.svd-latent-tag-dim {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: #1a5cd8;
+}
+
+.svd-latent-tag-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 14rem;
+  font-weight: 500;
+  color: #3c4f6e;
+}
+
+@media (max-width: 480px) {
+  .svd-latent-tag-label {
+    max-width: 9rem;
+  }
+}
+
 /* ── Chat messages (unused, kept for reference) ────────────────────────────── */
 
 /* ── Loading dots ──────────────────────────────────────────────────────────── */
