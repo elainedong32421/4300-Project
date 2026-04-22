@@ -22,10 +22,34 @@ from models import db, AitaPost
 
 USE_LLM = bool(os.getenv("SPARK_API_KEY"))
 
+# Latent space size for truncated SVD. If this differs from data/index/svd_factors.npz
+# on disk, factors are recomputed on next startup.
+SVD_RANK = 20
+
 _index = None  # loaded once from disk
 _tfidf_cache = None
 
 _SVD_NPZ = None  # path set after index is loaded
+
+
+def _build_svd_dimension_labels(token_to_idx, words_svd_normed, terms_per_dimension=4):
+    if words_svd_normed.size == 0:
+        return []
+    idx_to_token = [None] * len(token_to_idx)
+    for token, idx in token_to_idx.items():
+        if 0 <= idx < len(idx_to_token):
+            idx_to_token[idx] = token
+
+    labels = []
+    for dim in range(words_svd_normed.shape[1]):
+        dim_weights = words_svd_normed[:, dim]
+        top_term_indices = np.argsort(np.abs(dim_weights))[::-1][:terms_per_dimension]
+        top_terms = [idx_to_token[i] for i in top_term_indices if idx_to_token[i]]
+        if top_terms:
+            labels.append(", ".join(top_terms))
+        else:
+            labels.append(f"latent dimension {dim}")
+    return labels
 
 
 def _load_index():
@@ -172,17 +196,38 @@ def _tfidf_index():
     row_norms = np.where(row_norms == 0.0, 1.0, row_norms)
     X_normed = X.multiply(1.0 / row_norms[:, np.newaxis]).tocsr()
 
-    # Load SVD from disk if available, else compute and save
+    # Load SVD from disk if rank matches; otherwise recompute (e.g. after SVD_RANK change).
+    docs_svd_normed = None
+    words_svd_normed = None
     if _SVD_NPZ and os.path.exists(_SVD_NPZ):
         saved = np.load(_SVD_NPZ)
         docs_svd_normed = saved['docs']
         words_svd_normed = saved['words']
-    else:
-        docs_svd_normed, words_svd_normed = _build_svd(X.toarray())
-        if _SVD_NPZ:
-            np.savez_compressed(_SVD_NPZ, docs=docs_svd_normed, words=words_svd_normed)
+        cached_rank = int(saved['rank'][0]) if 'rank' in saved.files else docs_svd_normed.shape[1]
+        if docs_svd_normed.shape[1] != SVD_RANK or cached_rank != SVD_RANK:
+            docs_svd_normed = None
+            words_svd_normed = None
 
-    _tfidf_cache = (token_to_idx, idf, X_normed, docs_svd_normed, words_svd_normed, posts_meta)
+    if docs_svd_normed is None:
+        docs_svd_normed, words_svd_normed = _build_svd(X.toarray(), k=SVD_RANK)
+        if _SVD_NPZ:
+            np.savez_compressed(
+                _SVD_NPZ,
+                docs=docs_svd_normed,
+                words=words_svd_normed,
+                rank=np.array([SVD_RANK], dtype=np.int32),
+            )
+
+    svd_dimension_labels = _build_svd_dimension_labels(token_to_idx, words_svd_normed)
+    _tfidf_cache = (
+        token_to_idx,
+        idf,
+        X_normed,
+        docs_svd_normed,
+        words_svd_normed,
+        svd_dimension_labels,
+        posts_meta,
+    )
     return _tfidf_cache
 
 
@@ -190,7 +235,15 @@ def json_search(query, method='svd', verdict_filter=None):
     if not query or not query.strip():
         return []
 
-    token_to_idx, idf, X_normed, docs_svd_normed, words_svd_normed, posts = _tfidf_index()
+    (
+        token_to_idx,
+        idf,
+        X_normed,
+        docs_svd_normed,
+        words_svd_normed,
+        svd_dimension_labels,
+        posts,
+    ) = _tfidf_index()
     if not posts or token_to_idx is None:
         return []
     if not token_to_idx or np.asarray(idf).size == 0:
@@ -209,7 +262,8 @@ def json_search(query, method='svd', verdict_filter=None):
         candidate_indices = np.arange(len(posts))
 
     tokens = _tokenize(query)
-    if method == 'tfidf':
+    use_svd = method != 'tfidf'
+    if not use_svd:
         q = _query_tfidf_l2(tokens, token_to_idx, idf)
         sims_all = X_normed @ q
     else:
@@ -223,8 +277,28 @@ def json_search(query, method='svd', verdict_filter=None):
     for local_idx in top_local:
         idx = int(candidate_indices[local_idx])
         post = posts[idx]
+        svd_top_dimensions = None
+        if use_svd:
+            doc_vec = docs_svd_normed[idx]
+            contributions = doc_vec * q
+            top_dim_idx = np.argsort(np.abs(contributions))[::-1][:5]
+            svd_top_dimensions = [
+                {
+                    "dimension": int(dim),
+                    "label": (
+                        svd_dimension_labels[int(dim)]
+                        if int(dim) < len(svd_dimension_labels)
+                        else f"latent dimension {int(dim)}"
+                    ),
+                    "post_value": float(doc_vec[dim]),
+                    "query_value": float(q[dim]),
+                    "contribution": float(contributions[dim]),
+                }
+                for dim in top_dim_idx
+            ]
+
         if isinstance(post, dict):
-            matches.append({
+            match = {
                 "id": post.get("id"),
                 "submission_id": post.get("submission_id"),
                 "title": post.get("title"),
@@ -232,9 +306,12 @@ def json_search(query, method='svd', verdict_filter=None):
                 "score": post.get("score"),
                 "similarity": float(sims_all[idx]),
                 "verdict": post.get("verdict", "UNKNOWN"),
-            })
+            }
+            if svd_top_dimensions is not None:
+                match["svd_top_dimensions"] = svd_top_dimensions
+            matches.append(match)
         else:
-            matches.append({
+            match = {
                 "id": post.id,
                 "submission_id": post.submission_id,
                 "title": post.title,
@@ -242,7 +319,10 @@ def json_search(query, method='svd', verdict_filter=None):
                 "score": post.score,
                 "similarity": float(sims_all[idx]),
                 "verdict": getattr(post, "verdict", "UNKNOWN"),
-            })
+            }
+            if svd_top_dimensions is not None:
+                match["svd_top_dimensions"] = svd_top_dimensions
+            matches.append(match)
     return matches
 
 

@@ -6,6 +6,16 @@ export interface AitaPost {
   score: number;
   similarity: number;
   verdict?: string;
+  /** Present for SVD retrieval only; ignored in TF-IDF and in the RAG UI. */
+  svd_top_dimensions?: SvdDimensionValue[];
+}
+
+export interface SvdDimensionValue {
+  dimension: number;
+  label: string;
+  post_value: number;
+  query_value: number;
+  contribution: number;
 }
 
 export interface LlmSearchResponse {

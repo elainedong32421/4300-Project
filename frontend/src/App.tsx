@@ -303,6 +303,23 @@ function App(): JSX.Element {
                     {post.selftext && post.selftext.length > 400 ? '...' : ''}
                   </p>
                   <p className="episode-rating">Net Votes: {post.score} · Similarity: {post.similarity?.toFixed(3)}</p>
+                  {method === 'SVD' && post.svd_top_dimensions && post.svd_top_dimensions.length > 0 && (
+                    <div className="svd-latent-tags" aria-label="Top latent SVD dimensions for this match">
+                      <span className="svd-latent-tags-heading">Latent dimensions</span>
+                      <div className="svd-latent-tags-row">
+                        {post.svd_top_dimensions.map(dim => (
+                          <span
+                            key={`${post.id}-d${dim.dimension}`}
+                            className="svd-latent-tag"
+                            title={`post ${dim.post_value.toFixed(3)} · query ${dim.query_value.toFixed(3)} · contribution ${dim.contribution.toFixed(3)}`}
+                          >
+                            <span className="svd-latent-tag-dim">d{dim.dimension}</span>
+                            <span className="svd-latent-tag-label">{dim.label}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </>
