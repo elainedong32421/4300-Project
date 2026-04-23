@@ -217,8 +217,32 @@
   font-size: 1rem;
   color: #3c4043;
   line-height: 1.6;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0;
   font-family: 'Montserrat', sans-serif;
+}
+
+.episode-desc-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.see-more-btn {
+  align-self: flex-end;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a5cd8;
+  cursor: pointer;
+  font-family: 'Open Sans', sans-serif;
+}
+
+.see-more-btn:hover {
+  color: #1749aa;
+  text-decoration: underline;
 }
 
 .episode-rating {

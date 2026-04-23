@@ -45,6 +45,7 @@ function App(): JSX.Element {
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>(null)
   const [rag, setRag] = useState<RagState>(RAG_IDLE)
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const [expandedPosts, setExpandedPosts] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     fetch('/api/config')
@@ -177,6 +178,11 @@ function App(): JSX.Element {
     const next: VerdictFilter = verdictFilter === v ? null : v
     setVerdictFilter(next)
     if (searchTerm.trim()) handleSearch(searchTerm, method, next)
+  }
+
+  const togglePostExpansion = (postId: string | number) => {
+    const key = String(postId)
+    setExpandedPosts(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   const hasResults = posts.length > 0 || rag.step !== 'idle'
