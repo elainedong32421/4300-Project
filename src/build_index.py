@@ -15,8 +15,33 @@ INDEX_NPZ = os.path.join(INDEX_DIR, 'tfidf_matrix.npz')
 INDEX_META = os.path.join(INDEX_DIR, 'tfidf_meta.pkl')
 
 
+_STOPWORDS = {
+    "a", "an", "the", "and", "or", "but", "if", "in", "on", "at", "to",
+    "for", "of", "with", "by", "from", "as", "is", "was", "are", "were",
+    "be", "been", "being", "have", "has", "had", "do", "does", "did",
+    "will", "would", "could", "should", "may", "might", "shall", "can",
+    "i", "me", "my", "we", "our", "you", "your", "he", "him", "his",
+    "she", "her", "they", "them", "their", "it", "its", "this", "that",
+    "these", "those", "what", "which", "who", "when", "where", "how",
+    "not", "no", "so", "up", "out", "about", "into", "than", "then",
+    "just", "also", "more", "very", "all", "any", "each", "other",
+    "said", "told", "got", "get", "went", "know", "think", "want",
+    "like", "go", "come", "one", "two", "s", "t", "m", "re", "ve",
+    "aita", "wibta", "aitah",
+    # contraction fragments
+    "don", "didn", "doesn", "wasn", "isn", "aren", "won", "haven",
+    "hadn", "wouldn", "couldn", "shouldn", "ll", "d",
+    # more high-frequency function words
+    "because", "after", "before", "there", "their", "some", "even",
+    "now", "still", "back", "off", "over", "only", "never", "while",
+    "really", "am", "us", "since", "time", "day", "make", "years",
+    "going", "actually", "already", "always", "again", "away",
+    "f", "ive", "im",
+}
+
+
 def tokenize(text):
-    return re.findall(r"[a-z0-9]+", text.lower())
+    return [t for t in re.findall(r"[a-z]+", text.lower()) if t not in _STOPWORDS]
 
 
 _VERDICTS = ["NTA", "YTA", "ESH", "NAH"]

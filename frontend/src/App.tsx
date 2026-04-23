@@ -15,9 +15,16 @@ const VERDICT_COLORS: Record<string, string> = {
 
 const VERDICT_LABELS: Record<Exclude<VerdictFilter, null>, string> = {
   NTA: 'Not the Asshole',
-  YTA: 'You’re the Asshole',
+  YTA: "You're the Asshole",
   ESH: 'Everyone Sucks Here',
   NAH: 'No Assholes Here',
+}
+
+const VERDICT_DESCRIPTIONS: Record<string, string> = {
+  NTA: 'Not the Asshole — You acted reasonably; the other party is at fault.',
+  YTA: 'You\'re the Asshole — You acted poorly or unfairly in this situation.',
+  ESH: 'Everyone Sucks Here — Multiple parties behaved badly.',
+  NAH: 'No Assholes Here — Everyone acted understandably; it\'s just a conflict.',
 }
 
 interface RagState {
@@ -318,7 +325,11 @@ function App(): JSX.Element {
                     <div className="rank-card-header">
                       <span className="rank-num">#{i + 1}</span>
                       {post.verdict && (
-                        <span className="verdict-badge" style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}>
+                        <span
+                          className="verdict-badge"
+                          style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}
+                          title={VERDICT_DESCRIPTIONS[post.verdict] ?? post.verdict}
+                        >
                           {post.verdict}
                         </span>
                       )}
@@ -332,7 +343,7 @@ function App(): JSX.Element {
                             <span
                               key={`${post.id}-cmp-d${dim.dimension}`}
                               className="svd-latent-tag"
-                              title={`d${dim.dimension}: ${dim.label}`}
+                              title={`Dimension ${dim.dimension} — top terms: ${dim.label}\nPost value: ${dim.post_value.toFixed(3)}, Query value: ${dim.query_value.toFixed(3)}, Contribution: ${dim.contribution.toFixed(3)}`}
                             >
                               <span className="svd-latent-tag-dim">d{dim.dimension}</span>
                               <span className="svd-latent-tag-label">{dim.label}</span>
@@ -341,7 +352,11 @@ function App(): JSX.Element {
                         </div>
                       </div>
                     )}
-                    <div className="rank-card-stats">sim: {post.similarity?.toFixed(3)} · score: {post.score}</div>
+                    <div className="rank-card-stats">
+                      <span title="Cosine similarity between query and post in SVD latent space (0–1)">sim: {post.similarity?.toFixed(3)}</span>
+                      {' · '}
+                      <span title="Reddit upvote score at time of collection">score: {post.score}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -356,13 +371,21 @@ function App(): JSX.Element {
                         <RankDelta originalRank={post.original_rank} newRank={i + 1} />
                       )}
                       {post.verdict && (
-                        <span className="verdict-badge" style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}>
+                        <span
+                          className="verdict-badge"
+                          style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}
+                          title={VERDICT_DESCRIPTIONS[post.verdict] ?? post.verdict}
+                        >
                           {post.verdict}
                         </span>
                       )}
                     </div>
                     <div className="rank-card-title">{post.title}</div>
-                    <div className="rank-card-stats">tfidf: {post.tfidf_similarity?.toFixed(3)} · was #{post.original_rank}</div>
+                    <div className="rank-card-stats">
+                      <span title="TF-IDF cosine similarity between your original query and this post (0–1)">tfidf: {post.tfidf_similarity?.toFixed(3)}</span>
+                      {' · '}
+                      <span title="Original rank from SVD retrieval before re-ranking">was #{post.original_rank}</span>
+                    </div>
                     {post.rerank_reason && (
                       <div className="rerank-reason">{post.rerank_reason}</div>
                     )}
@@ -388,7 +411,11 @@ function App(): JSX.Element {
                   return (
                     <div key={post.id} className="episode-item">
                       {post.verdict && (
-                        <span className="verdict-badge" style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}>
+                        <span
+                          className="verdict-badge"
+                          style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}
+                          title={VERDICT_DESCRIPTIONS[post.verdict] ?? post.verdict}
+                        >
                           {post.verdict}
                         </span>
                       )}
@@ -405,7 +432,7 @@ function App(): JSX.Element {
                           </button>
                         )}
                       </div>
-                      {method === 'SVD' && post.svd_top_dimensions && post.svd_top_dimensions.length > 0 && (
+                      {post.svd_top_dimensions && post.svd_top_dimensions.length > 0 && (
                         <div className="svd-latent-tags" aria-label="Top latent SVD dimensions for this match">
                           <span className="svd-latent-tags-heading">Latent dimensions</span>
                           <div className="svd-latent-tags-row">
@@ -413,7 +440,7 @@ function App(): JSX.Element {
                               <span
                                 key={`${post.id}-d${dim.dimension}`}
                                 className="svd-latent-tag"
-                                title={`d${dim.dimension}: ${dim.label}`}
+                                title={`Dimension ${dim.dimension} — top terms: ${dim.label}\nPost value: ${dim.post_value.toFixed(3)}, Query value: ${dim.query_value.toFixed(3)}, Contribution: ${dim.contribution.toFixed(3)}`}
                               >
                                 <span className="svd-latent-tag-dim">d{dim.dimension}</span>
                                 <span className="svd-latent-tag-label">{dim.label}</span>
@@ -422,7 +449,11 @@ function App(): JSX.Element {
                           </div>
                         </div>
                       )}
-                      <p className="episode-rating">Net Votes: {post.score} · Similarity: {post.similarity?.toFixed(3)}</p>
+                      <p className="episode-rating">
+                        <span title="Reddit upvote score (upvotes minus downvotes) at time of collection">Net Votes: {post.score}</span>
+                        {' · '}
+                        <span title="Cosine similarity between your query and this post in the latent space (0–1, higher = more similar)">Similarity: {post.similarity?.toFixed(3)}</span>
+                      </p>
                     </div>
                   )
                 })}
