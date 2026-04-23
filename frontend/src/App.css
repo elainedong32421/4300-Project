@@ -484,6 +484,96 @@
   white-space: pre-wrap;
 }
 
+/* ── Side-by-side re-rank comparison ──────────────────────────────────────── */
+
+#answer-box.comparison-mode {
+  width: min(1080px, calc(100vw - 2rem));
+  max-width: none;
+}
+
+.rerank-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.rerank-col-header {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.rank-card {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.6rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.rank-card-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+
+.rank-num {
+  font-family: 'Kanit', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #aaa;
+  min-width: 22px;
+}
+
+.rank-delta {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.rank-delta.rank-up   { color: #2e7d32; background: #e8f5e9; }
+.rank-delta.rank-down { color: #c62828; background: #ffebee; }
+.rank-delta.rank-same { color: #888;    background: #f0f0f0; }
+
+.rank-card-title {
+  font-family: 'Kanit', sans-serif;
+  font-size: 0.9rem;
+  color: #1a73e8;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.rank-card-stats {
+  font-size: 0.75rem;
+  color: #5f6368;
+  font-family: 'Open Sans', sans-serif;
+}
+
+.rerank-reason {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.78rem;
+  color: #7c6fc4;
+  font-style: italic;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid #e0e0e0;
+  line-height: 1.4;
+}
+
+@media (max-width: 768px) {
+  .rerank-comparison { grid-template-columns: 1fr; }
+}
+
 /* ── Verdict badge on post cards ───────────────────────────────────────────── */
 
 .verdict-badge {

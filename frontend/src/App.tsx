@@ -24,15 +24,23 @@ interface RagState {
   rewrittenQuery: string | null
   answer: string
   loading: boolean
-  step: 'idle' | 'rewriting' | 'retrieving' | 'answering' | 'done'
+  step: 'idle' | 'rewriting' | 'retrieving' | 'reranking' | 'answering' | 'done'
 }
 
 const RAG_IDLE: RagState = { rewrittenQuery: null, answer: '', loading: false, step: 'idle' }
+
+function RankDelta({ originalRank, newRank }: { originalRank: number; newRank: number }) {
+  const delta = originalRank - newRank
+  if (delta > 0) return <span className="rank-delta rank-up">↑{delta}</span>
+  if (delta < 0) return <span className="rank-delta rank-down">↓{Math.abs(delta)}</span>
+  return <span className="rank-delta rank-same">=</span>
+}
 
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean>(true)
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [posts, setPosts] = useState<AitaPost[]>([])
+  const [rerankedPosts, setRerankedPosts] = useState<AitaPost[]>([])
   const [method, setMethod] = useState<SearchMethod>('SVD')
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>(null)
   const [rag, setRag] = useState<RagState>(RAG_IDLE)
@@ -74,6 +82,7 @@ function App(): JSX.Element {
   const runRagSearch = async (value: string) => {
     setRag({ ...RAG_IDLE, loading: true, step: 'rewriting' })
     setPosts([])
+    setRerankedPosts([])
     setErrorMessage('')
 
     if (!useLlm) {
@@ -117,6 +126,9 @@ function App(): JSX.Element {
               setRag(r => ({ ...r, rewrittenQuery: ev.rewritten_query, step: 'retrieving' }))
             } else if (ev.ir_results !== undefined) {
               setPosts(ev.ir_results)
+              setRag(r => ({ ...r, step: 'reranking' }))
+            } else if (ev.reranked_results !== undefined) {
+              setRerankedPosts(ev.reranked_results)
               setRag(r => ({ ...r, step: 'answering' }))
             } else if (ev.content !== undefined) {
               setRag(r => ({ ...r, answer: r.answer + ev.content }))
@@ -141,6 +153,7 @@ function App(): JSX.Element {
     setSearchTerm(value)
     if (value.trim() === '') {
       setPosts([])
+      setRerankedPosts([])
       setRag(RAG_IDLE)
       setErrorMessage('')
       return
@@ -156,6 +169,7 @@ function App(): JSX.Element {
   const handleMethodChange = (m: SearchMethod) => {
     setMethod(m)
     setRag(RAG_IDLE)
+    setRerankedPosts([])
     if (searchTerm.trim()) handleSearch(searchTerm, m, verdictFilter)
   }
 
@@ -167,11 +181,14 @@ function App(): JSX.Element {
 
   const hasResults = posts.length > 0 || rag.step !== 'idle'
 
+  const showComparison = method === 'RAG' && rerankedPosts.length > 0
+
   const ragStepLabel: Record<RagState['step'], string> = {
     idle: '',
     rewriting: 'Step 1 — rewriting query…',
     retrieving: 'Step 2 — retrieving posts…',
-    answering: 'Step 3 — synthesizing verdict…',
+    reranking: 'Step 3 — re-ranking with TF-IDF…',
+    answering: 'Step 4 — synthesizing verdict…',
     done: '',
   }
 
@@ -248,7 +265,7 @@ function App(): JSX.Element {
         </div>
 
         {/* ── Results area ── */}
-        <div id="answer-box">
+        <div id="answer-box" className={showComparison ? 'comparison-mode' : ''}>
           {errorMessage && (
             <div className="search-error-card">
               {errorMessage}
@@ -284,45 +301,75 @@ function App(): JSX.Element {
             </div>
           )}
 
-          {/* Retrieved / searched posts — same cards for all methods */}
-          {posts.length > 0 && (
-            <>
-              {method === 'RAG' && (
-                <div className="rag-ir-section-label">Retrieved posts used as context</div>
-              )}
-              {posts.map(post => (
-                <div key={post.id} className="episode-item">
-                  {post.verdict && (
-                    <span className="verdict-badge" style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}>
-                      {post.verdict}
-                    </span>
-                  )}
-                  <h3 className="episode-title">{post.title}</h3>
-                  <p className="episode-desc">
-                    {post.selftext ? post.selftext.slice(0, 400) : 'No text available'}
-                    {post.selftext && post.selftext.length > 400 ? '...' : ''}
-                  </p>
-                  <p className="episode-rating">Net Votes: {post.score} · Similarity: {post.similarity?.toFixed(3)}</p>
-                  {method === 'SVD' && post.svd_top_dimensions && post.svd_top_dimensions.length > 0 && (
-                    <div className="svd-latent-tags" aria-label="Top latent SVD dimensions for this match">
-                      <span className="svd-latent-tags-heading">Latent dimensions</span>
-                      <div className="svd-latent-tags-row">
-                        {post.svd_top_dimensions.map(dim => (
-                          <span
-                            key={`${post.id}-d${dim.dimension}`}
-                            className="svd-latent-tag"
-                            title={`post ${dim.post_value.toFixed(3)} · query ${dim.query_value.toFixed(3)} · contribution ${dim.contribution.toFixed(3)}`}
-                          >
-                            <span className="svd-latent-tag-dim">d{dim.dimension}</span>
-                            <span className="svd-latent-tag-label">{dim.label}</span>
-                          </span>
-                        ))}
-                      </div>
+          {/* ── Side-by-side comparison (RAG once reranking is done) ── */}
+          {showComparison ? (
+            <div className="rerank-comparison">
+              <div className="rerank-col">
+                <div className="rerank-col-header">SVD Ranking</div>
+                {posts.slice(0, 10).map((post, i) => (
+                  <div key={post.id} className="rank-card">
+                    <div className="rank-card-header">
+                      <span className="rank-num">#{i + 1}</span>
+                      {post.verdict && (
+                        <span className="verdict-badge" style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}>
+                          {post.verdict}
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
-            </>
+                    <div className="rank-card-title">{post.title}</div>
+                    <div className="rank-card-stats">sim: {post.similarity?.toFixed(3)} · score: {post.score}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rerank-col">
+                <div className="rerank-col-header">TF-IDF Re-rank</div>
+                {rerankedPosts.map((post, i) => (
+                  <div key={post.id} className="rank-card">
+                    <div className="rank-card-header">
+                      <span className="rank-num">#{i + 1}</span>
+                      {post.original_rank !== undefined && (
+                        <RankDelta originalRank={post.original_rank} newRank={i + 1} />
+                      )}
+                      {post.verdict && (
+                        <span className="verdict-badge" style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}>
+                          {post.verdict}
+                        </span>
+                      )}
+                    </div>
+                    <div className="rank-card-title">{post.title}</div>
+                    <div className="rank-card-stats">tfidf: {post.tfidf_similarity?.toFixed(3)} · was #{post.original_rank}</div>
+                    {post.rerank_reason && (
+                      <div className="rerank-reason">{post.rerank_reason}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* ── Plain post list (SVD/TF-IDF, or RAG before reranking arrives) ── */
+            posts.length > 0 && (
+              <>
+                {method === 'RAG' && (
+                  <div className="rag-ir-section-label">Retrieved posts used as context</div>
+                )}
+                {posts.map(post => (
+                  <div key={post.id} className="episode-item">
+                    {post.verdict && (
+                      <span className="verdict-badge" style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}>
+                        {post.verdict}
+                      </span>
+                    )}
+                    <h3 className="episode-title">{post.title}</h3>
+                    <p className="episode-desc">
+                      {post.selftext ? post.selftext.slice(0, 400) : 'No text available'}
+                      {post.selftext && post.selftext.length > 400 ? '...' : ''}
+                    </p>
+                    <p className="episode-rating">Net Votes: {post.score} · Similarity: {post.similarity?.toFixed(3)}</p>
+                  </div>
+                ))}
+              </>
+            )
           )}
         </div>
       </div>
