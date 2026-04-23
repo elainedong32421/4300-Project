@@ -2,15 +2,16 @@
 LLM routes — only loaded when USE_LLM = True in routes.py.
 
 Registers two endpoints:
-  POST /api/llm_search  — non-streaming RAG: rewrite → IR → verdict synthesis
+  POST /api/llm_search  — non-streaming RAG: rewrite → IR → TF-IDF rerank → verdict synthesis
   POST /api/rag         — streaming RAG: same pipeline but SSE so UI can show
                           IR results before the LLM answer finishes
 """
 import json
+import re
 import os
 import logging
 import socket
-import requests
+import numpy as np
 from flask import request, jsonify, Response, stream_with_context
 from infosci_spark_client import LLMClient
 
@@ -35,14 +36,101 @@ _SYNTHESIS_SYSTEM = (
     "that would retrieve even better results from the database.]\""
 )
 
+_RERANK_REASON_SYSTEM = (
+    "You explain TF-IDF re-ranking results for Reddit AITA posts. "
+    "For each re-ranked post, write ONE sentence (max 12 words) explaining why it ranked there. "
+    "Focus on keyword overlap between the user's query and the post title/text. "
+    "Respond with ONLY a valid JSON array, no markdown: [{\"rank\": 1, \"reason\": \"...\"}, ...]"
+)
+
 
 def _make_client():
     api_key = os.getenv("SPARK_API_KEY")
     if not api_key:
         return None, "SPARK_API_KEY not set in .env"
-    # Set a global socket timeout so LLM calls never hang indefinitely
     socket.setdefaulttimeout(60)
     return LLMClient(api_key=api_key.strip()), None
+
+
+def _tfidf_rerank(posts, query):
+    """
+    Re-rank posts by local TF-IDF cosine similarity against query (the user's original words).
+    Returns a new list sorted descending with tfidf_similarity and original_rank added.
+    """
+    def _tok(text):
+        return re.findall(r"[a-z0-9]+", text.lower())
+
+    query_tokens = _tok(query)
+    post_token_lists = [_tok(f"{p.get('title', '')} {p.get('selftext', '')}") for p in posts]
+
+    vocab = sorted({t for tokens in [query_tokens] + post_token_lists for t in tokens})
+    if not vocab:
+        return [{**p, 'tfidf_similarity': 0.0, 'original_rank': i + 1} for i, p in enumerate(posts)]
+
+    token_to_idx = {t: i for i, t in enumerate(vocab)}
+    V = len(vocab)
+    n = len(posts)
+
+    df = np.zeros(V)
+    for tokens in post_token_lists:
+        seen = set()
+        for t in tokens:
+            j = token_to_idx.get(t)
+            if j is not None and j not in seen:
+                df[j] += 1
+                seen.add(j)
+    idf = np.log((1.0 + n) / (1.0 + df)) + 1.0
+
+    def _vec(tokens):
+        counts = {}
+        for t in tokens:
+            j = token_to_idx.get(t)
+            if j is not None:
+                counts[j] = counts.get(j, 0) + 1
+        v = np.zeros(V)
+        for j, cnt in counts.items():
+            v[j] = (1.0 + np.log(float(cnt))) * idf[j]
+        norm = np.linalg.norm(v)
+        return v / norm if norm > 0 else v
+
+    q_vec = _vec(query_tokens)
+
+    scored = []
+    for orig_idx, (p, tokens) in enumerate(zip(posts, post_token_lists)):
+        sim = float(np.dot(q_vec, _vec(tokens)))
+        scored.append((orig_idx + 1, sim, p))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [
+        {**p, 'tfidf_similarity': round(sim, 4), 'original_rank': orig_rank}
+        for orig_rank, sim, p in scored
+    ]
+
+
+def _get_rerank_reasons(client, query, reranked_posts):
+    """
+    Single LLM call asking for a 1-line reason per re-ranked post.
+    Returns {1-based-rank: reason_string}. Falls back to {} on any error.
+    """
+    lines = "\n\n".join(
+        f"Rank {i+1} (was #{p['original_rank']}): {p['title']}\n"
+        f"TF-IDF score: {p['tfidf_similarity']:.3f}"
+        for i, p in enumerate(reranked_posts)
+    )
+    prompt = f"Query: {query}\n\n{lines}\n\nRespond with ONLY a valid JSON array."
+    try:
+        resp = client.chat([
+            {"role": "system", "content": _RERANK_REASON_SYSTEM},
+            {"role": "user", "content": prompt},
+        ])
+        raw = (resp.get("content") or "").strip()
+        if "```" in raw:
+            raw = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
+        reasons = json.loads(raw)
+        return {int(r["rank"]): r["reason"] for r in reasons if "rank" in r and "reason" in r}
+    except Exception as e:
+        logger.warning(f"Rerank reasons LLM error: {e}")
+        return {}
 
 
 def register_llm_search_route(app, json_search):
@@ -73,7 +161,13 @@ def register_llm_search_route(app, json_search):
         # Step 2 — IR retrieval
         ir_results = json_search(rewritten_query, method=method, verdict_filter=verdict_filter)
 
-        # Step 3 — Verdict synthesis
+        # Step 3 — TF-IDF re-rank on top 10, then get LLM reasons
+        reranked = _tfidf_rerank(ir_results[:10], user_query)
+        reasons = _get_rerank_reasons(client, user_query, reranked)
+        for i, p in enumerate(reranked):
+            p['rerank_reason'] = reasons.get(i + 1, '')
+
+        # Step 4 — Verdict synthesis
         posts_context = "\n\n".join(
             f"Post {i+1} [{r.get('verdict', 'UNKNOWN')}]: {r['title']}\n{(r.get('selftext') or '')[:300]}"
             for i, r in enumerate(ir_results)
@@ -91,6 +185,7 @@ def register_llm_search_route(app, json_search):
         return jsonify({
             "rewritten_query": rewritten_query,
             "ir_results": ir_results,
+            "reranked_results": reranked,
             "llm_answer": llm_answer,
             "verdict_filter": verdict_filter,
         })
@@ -102,9 +197,10 @@ def register_llm_search_route(app, json_search):
 
         Events emitted in order:
           1. {"rewritten_query": "..."}          — LLM-rewritten IR query
-          2. {"ir_results": [...]}                — retrieved posts (same schema as /api/search)
-          3. {"content": "..."}  (many)           — streaming LLM synthesis tokens
-          4. {"done": true}                       — stream finished
+          2. {"ir_results": [...]}                — retrieved posts (original SVD/TF-IDF ranking)
+          3. {"reranked_results": [...]}           — TF-IDF re-ranked with 1-line LLM reasons
+          4. {"content": "..."}  (many)           — streaming LLM synthesis tokens
+          5. {"done": true}                       — stream finished
         """
         data = request.get_json() or {}
         user_query = (data.get("query") or "").strip()
@@ -147,7 +243,19 @@ def register_llm_search_route(app, json_search):
                 yield f"data: {json.dumps({'done': True})}\n\n"
                 return
 
-            # Step 3 — synthesize verdict (try streaming, fall back to blocking)
+            # Step 3 — TF-IDF re-rank + LLM reasons
+            try:
+                reranked = _tfidf_rerank(ir_results[:10], user_query)
+                reasons = _get_rerank_reasons(client, user_query, reranked)
+                for i, p in enumerate(reranked):
+                    p['rerank_reason'] = reasons.get(i + 1, '')
+            except Exception as e:
+                logger.error(f"Rerank error: {e}")
+                reranked = []
+
+            yield f"data: {json.dumps({'reranked_results': reranked})}\n\n"
+
+            # Step 4 — synthesize verdict (try streaming, fall back to blocking)
             posts_context = "\n\n".join(
                 f"Post {i+1} [{r.get('verdict', 'UNKNOWN')}]: {r['title']}\n{(r.get('selftext') or '')[:300]}"
                 for i, r in enumerate(ir_results)
@@ -169,7 +277,6 @@ def register_llm_search_route(app, json_search):
             except Exception as e:
                 logger.error(f"Streaming synthesis error: {e}")
 
-            # Streaming returned nothing — try blocking call instead
             if not got_content:
                 try:
                     resp = client.chat(synthesis_messages)
