@@ -38,7 +38,7 @@
   z-index: 10;
   width: 100%;
   background-color: #2b2b2b;
-  padding: 20px 0 16px;
+  padding: 24px 0 16px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
@@ -56,7 +56,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0.5rem 0;
+  padding: 0;
 }
 
 .rag-step-label {
@@ -89,7 +89,7 @@
   border-radius: 20px;
   padding: 6px 14px;
   width: fit-content;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .rag-query-label {
@@ -124,7 +124,7 @@
   font-size: 0.95rem;
   color: #aaaaaa;
   letter-spacing: 0.01em;
-  margin: 0 0 8px;
+  margin: 0 0 12px;
   text-align: center;
   max-width: 620px;
   white-space: nowrap;
@@ -147,7 +147,7 @@
   background-color: #ffffff;
   display: flex;
   align-items: center;
-  margin-top: 10px;
+  margin-top: 12px;
   padding: 12px;
   width: 600px;
   cursor: text;
@@ -185,9 +185,10 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  margin-top: 1.5rem;
-  margin-bottom: 2rem;
-  padding: 0 1rem;
+  margin-top: 24px;
+  margin-bottom: 32px;
+  padding: 0 16px;
+  box-sizing: border-box;
 }
 
 .search-error-card {
@@ -200,7 +201,7 @@
 }
 
 .episode-item {
-  padding: 1.5rem;
+  padding: 24px;
   background-color: #f8f9fa;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -480,13 +481,14 @@
 /* ── LLM verdict card ──────────────────────────────────────────────────────── */
 
 .llm-verdict-card {
-  width: 620px;
-  max-width: calc(100% - 2rem);
+  width: 100%;
+  max-width: 100%;
   background: #1e2a1e;
   border: 1.5px solid #2e7d32;
   border-radius: 10px;
-  padding: 1.25rem 1.5rem;
-  margin: 1rem 1rem 0;
+  padding: 20px 24px;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .llm-verdict-header {
@@ -518,7 +520,7 @@
 .rerank-comparison {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
+  gap: 16px;
   width: 100%;
 }
 
@@ -537,8 +539,8 @@
 .rank-card {
   background: #f8f9fa;
   border-radius: 8px;
-  padding: 0.85rem 1rem;
-  margin-bottom: 0.6rem;
+  padding: 14px 16px;
+  margin-bottom: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
