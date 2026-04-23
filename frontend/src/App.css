@@ -251,7 +251,7 @@
   font-weight: 600;
 }
 
-/* SVD-only: latent dimension tags (not used for TF-IDF or RAG in App.tsx) */
+/* SVD-only: latent dimension tags */
 .svd-latent-tags {
   margin-top: 0.65rem;
   padding-top: 0.5rem;

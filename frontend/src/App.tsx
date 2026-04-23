@@ -28,6 +28,7 @@ interface RagState {
 }
 
 const RAG_IDLE: RagState = { rewrittenQuery: null, answer: '', loading: false, step: 'idle' }
+const PREVIEW_LENGTH = 400
 
 function RankDelta({ originalRank, newRank }: { originalRank: number; newRank: number }) {
   const delta = originalRank - newRank
@@ -323,6 +324,23 @@ function App(): JSX.Element {
                       )}
                     </div>
                     <div className="rank-card-title">{post.title}</div>
+                    {post.svd_top_dimensions && post.svd_top_dimensions.length > 0 && (
+                      <div className="svd-latent-tags" aria-label="Top latent SVD dimensions for this match">
+                        <span className="svd-latent-tags-heading">Latent dimensions</span>
+                        <div className="svd-latent-tags-row">
+                          {post.svd_top_dimensions.map(dim => (
+                            <span
+                              key={`${post.id}-cmp-d${dim.dimension}`}
+                              className="svd-latent-tag"
+                              title={`d${dim.dimension}: ${dim.label}`}
+                            >
+                              <span className="svd-latent-tag-dim">d{dim.dimension}</span>
+                              <span className="svd-latent-tag-label">{dim.label}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="rank-card-stats">sim: {post.similarity?.toFixed(3)} · score: {post.score}</div>
                   </div>
                 ))}
@@ -359,21 +377,55 @@ function App(): JSX.Element {
                 {method === 'RAG' && (
                   <div className="rag-ir-section-label">Retrieved posts used as context</div>
                 )}
-                {posts.map(post => (
-                  <div key={post.id} className="episode-item">
-                    {post.verdict && (
-                      <span className="verdict-badge" style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}>
-                        {post.verdict}
-                      </span>
-                    )}
-                    <h3 className="episode-title">{post.title}</h3>
-                    <p className="episode-desc">
-                      {post.selftext ? post.selftext.slice(0, 400) : 'No text available'}
-                      {post.selftext && post.selftext.length > 400 ? '...' : ''}
-                    </p>
-                    <p className="episode-rating">Net Votes: {post.score} · Similarity: {post.similarity?.toFixed(3)}</p>
-                  </div>
-                ))}
+                {posts.map(post => {
+                  const postKey = String(post.id)
+                  const isExpanded = Boolean(expandedPosts[postKey])
+                  const hasOverflow = Boolean(post.selftext && post.selftext.length > PREVIEW_LENGTH)
+                  const visibleText = post.selftext
+                    ? (hasOverflow && !isExpanded ? `${post.selftext.slice(0, PREVIEW_LENGTH)}...` : post.selftext)
+                    : 'No text available'
+
+                  return (
+                    <div key={post.id} className="episode-item">
+                      {post.verdict && (
+                        <span className="verdict-badge" style={{ background: VERDICT_COLORS[post.verdict] ?? '#555' }}>
+                          {post.verdict}
+                        </span>
+                      )}
+                      <h3 className="episode-title">{post.title}</h3>
+                      <div className="episode-desc-wrap">
+                        <p className="episode-desc">{visibleText}</p>
+                        {hasOverflow && (
+                          <button
+                            type="button"
+                            className="see-more-btn"
+                            onClick={() => togglePostExpansion(post.id)}
+                          >
+                            {isExpanded ? 'See less' : 'See more'}
+                          </button>
+                        )}
+                      </div>
+                      {method === 'SVD' && post.svd_top_dimensions && post.svd_top_dimensions.length > 0 && (
+                        <div className="svd-latent-tags" aria-label="Top latent SVD dimensions for this match">
+                          <span className="svd-latent-tags-heading">Latent dimensions</span>
+                          <div className="svd-latent-tags-row">
+                            {post.svd_top_dimensions.map(dim => (
+                              <span
+                                key={`${post.id}-d${dim.dimension}`}
+                                className="svd-latent-tag"
+                                title={`d${dim.dimension}: ${dim.label}`}
+                              >
+                                <span className="svd-latent-tag-dim">d{dim.dimension}</span>
+                                <span className="svd-latent-tag-label">{dim.label}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <p className="episode-rating">Net Votes: {post.score} · Similarity: {post.similarity?.toFixed(3)}</p>
+                    </div>
+                  )
+                })}
               </>
             )
           )}
