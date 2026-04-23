@@ -13,6 +13,13 @@ const VERDICT_COLORS: Record<string, string> = {
   NAH: '#1565c0',
 }
 
+const VERDICT_LABELS: Record<Exclude<VerdictFilter, null>, string> = {
+  NTA: 'Not the Asshole',
+  YTA: 'You’re the Asshole',
+  ESH: 'Everyone Sucks Here',
+  NAH: 'No Assholes Here',
+}
+
 interface RagState {
   rewrittenQuery: string | null
   answer: string
@@ -224,6 +231,8 @@ function App(): JSX.Element {
                     className={`verdict-btn${verdictFilter === v ? ' active' : ''}`}
                     style={verdictFilter === v ? { background: VERDICT_COLORS[v], color: '#fff', borderColor: VERDICT_COLORS[v] } : {}}
                     onClick={() => handleVerdictChange(v)}
+                    title={VERDICT_LABELS[v]}
+                    aria-label={`${v}: ${VERDICT_LABELS[v]}`}
                   >
                     {v}
                   </button>
