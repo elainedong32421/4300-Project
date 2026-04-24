@@ -622,11 +622,12 @@
 .legend-panel {
   width: 230px;
   flex-shrink: 0;
-  height: 100%;
-  overflow-y: auto;
+  align-self: flex-start;
+  margin: 32px 0 0 20px;
   background: #1c1006;
-  border-right: 1.5px solid #7a3b10;
-  padding: 32px 18px;
+  border: 1.5px solid #7a3b10;
+  border-radius: 12px;
+  padding: 20px 18px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
