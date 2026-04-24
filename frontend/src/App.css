@@ -29,6 +29,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  text-align: center;
   transition: padding 0.3s ease;
 }
 
@@ -42,11 +43,26 @@
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
-/* ── RAG toggle button ─────────────────────────────────────────────────────── */
+/* ── Search method toggle active colors ────────────────────────────────────── */
 
+/* SVD — blue (first button) */
+.toggle-buttons button:nth-child(1).active {
+  background: #dbeafe;
+  color: #1a5cd8;
+  font-weight: 500;
+}
+
+/* TF-IDF — purple (second button) */
+.toggle-buttons button:nth-child(2).active {
+  background: #f3e8ff;
+  color: #7c3aed;
+  font-weight: 500;
+}
+
+/* RAG — green */
 .rag-btn.active {
-  background: #f3e8ff !important;
-  color: #7c3aed !important;
+  background: #dcfce7 !important;
+  color: #16a34a !important;
   font-weight: 500 !important;
 }
 
@@ -84,8 +100,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #1e1e2e;
-  border: 1px solid #3d3d5c;
+  background: #1e1006;
+  border: 1px solid #7a3b10;
   border-radius: 20px;
   padding: 6px 14px;
   width: fit-content;
@@ -98,13 +114,13 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #7c6fc4;
+  color: #c47a3a;
 }
 
 .rag-query-text {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
-  color: #c4b8f0;
+  color: #e8b880;
 }
 
 .rag-ir-section-label {
@@ -117,6 +133,12 @@
   margin: 1rem 0 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid #3a3a3a;
+}
+
+.reddit-logo {
+  font-size: 80px;
+  color: #ff4500;
+  margin-bottom: 8px;
 }
 
 .tagline {
@@ -350,23 +372,20 @@
   #messages { padding: 0 8px 8px; }
 }
 
-.search-and-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .method-toggle {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
+  gap: 6px;
+  margin-top: 16px;
 }
 
 .method-label {
-  font-size: 11px;
-  color: #888;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ccc;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -388,8 +407,6 @@
 }
 
 .toggle-buttons button.active {
-  background: #e8f0fe;
-  color: #1a5cd8;
   font-weight: 500;
 }
 
@@ -513,8 +530,8 @@
 /* ── Side-by-side re-rank comparison ──────────────────────────────────────── */
 
 #answer-box.comparison-mode {
-  width: min(1080px, calc(100vw - 2rem));
-  max-width: none;
+  width: min(900px, 100%);
+  max-width: 100%;
 }
 
 .rerank-comparison {
@@ -598,6 +615,99 @@
 
 @media (max-width: 768px) {
   .rerank-comparison { grid-template-columns: 1fr; }
+}
+
+/* ── Legend panel (floating card) ──────────────────────────────────────────── */
+
+.legend-panel {
+  width: 230px;
+  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+  background: #1c1006;
+  border-right: 1.5px solid #7a3b10;
+  padding: 32px 18px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.legend-title {
+  font-family: 'Kanit', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #c47a3a;
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.legend-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.legend-method-badge {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 3px 11px;
+  border-radius: 4px;
+}
+
+.svd-badge   { background: #1a3d6e; color: #7cb4f8; }
+.tfidf-badge { background: #2a1a40; color: #c084fc; }
+.rag-badge   { background: #1a2e1a; color: #66bb6a; }
+
+.legend-desc {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.78rem;
+  color: #c0a080;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.legend-dataset {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.75rem;
+  color: #a07850;
+  border-top: 1px solid #5a2e08;
+  padding-top: 14px;
+  margin-top: 18px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.legend-dataset a {
+  color: #d4921a;
+  text-decoration: none;
+  display: block;
+  margin-top: 4px;
+}
+
+.legend-dataset a:hover {
+  text-decoration: underline;
+}
+
+/* ── Submission ID label on post cards ─────────────────────────────────────── */
+
+.post-sub-id {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.72rem;
+  color: #888;
+  margin-bottom: 4px;
 }
 
 /* ── Verdict badge on post cards ───────────────────────────────────────────── */

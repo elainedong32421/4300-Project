@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import SearchIcon from './assets/mag.png'
+import { FaReddit } from 'react-icons/fa'
 import { AitaPost } from './types'
 
 type SearchMethod = 'SVD' | 'TF-IDF' | 'RAG'
@@ -201,54 +202,79 @@ function App(): JSX.Element {
     idle: '',
     rewriting: 'Step 1 — rewriting query…',
     retrieving: 'Step 2 — retrieving posts…',
-    reranking: 'Step 3 — re-ranking with TF-IDF…',
+    reranking: 'Step 3 — re-ranking with LLM…',
     answering: 'Step 4 — synthesizing verdict…',
     done: '',
   }
 
   return (
     <div className={`full-body-container ${hasResults ? 'has-results' : ''}`}>
+
+      {/* ── Left legend sidebar ── */}
+      <aside className="legend-panel">
+        <div className="legend-title">How it works</div>
+        <div className="legend-items">
+          <div className="legend-item">
+            <span className="legend-method-badge svd-badge">SVD</span>
+            <span className="legend-desc"> Maps query into a latent semantic space to surface thematically similar posts, even when exact wording differs.</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-method-badge tfidf-badge">TF-IDF</span>
+            <span className="legend-desc">Ranks posts by term frequency and how relevant the exact of the query words are to each post.</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-method-badge rag-badge">RAG</span>
+            <span className="legend-desc">LLM-powered: rewrites your query, retrieves the top posts, re-ranks them semantically, and generates a personalized AITA verdict.</span>
+          </div>
+        </div>
+        <div className="legend-dataset">
+          To read a full post: copy the <strong>Submission ID</strong> from any result, then Ctrl+F in the{' '}
+          <a href="https://docs.google.com/spreadsheets/d/1QMzffAcpEp_nJT9DzdrBchVh7rS2qXAFPqaO5-WDaqc/edit?usp=sharing" target="_blank" rel="noreferrer">
+            this spreadsheet →
+          </a>
+        </div>
+      </aside>
+
       <div className="main-content">
 
         {/* ── Header + search ── */}
         <div className="top-text">
+          <FaReddit className="reddit-logo" />
           <h1 className="brain-rot-title">Brain rot</h1>
-          <p className="tagline">Your daily dose of "Am I the Asshole?" — curated, narrated, and impossible to stop.</p>
+          <p className="tagline">Your daily dose of "Am I the Asshole?" straight from r/AITA: curated, narrated, and impossible to stop.</p>
 
-          <div className="search-and-toggle">
-            <div className="input-box" onClick={() => document.getElementById('search-input')?.focus()}>
-              <img src={SearchIcon} alt="search" />
-              <input
-                id="search-input"
-                placeholder={method === 'RAG' ? 'Describe your situation for an AI verdict…' : 'Search for an r/AITA post!'}
-                value={searchTerm}
-                onChange={e => {
-                  const v = e.target.value
-                  setSearchTerm(v)
-                  if (method !== 'RAG') {
-                    if (v.trim() === '') { setPosts([]); setRag(RAG_IDLE) }
-                    else runIrSearch(v, method, verdictFilter)
-                  }
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleSearch(searchTerm)
-                }}
-              />
+          <div className="method-toggle">
+            <span className="method-label">Search method</span>
+            <div className="toggle-buttons">
+              <button className={method === 'SVD' ? 'active' : ''} onClick={() => handleMethodChange('SVD')}>SVD</button>
+              <button className={method === 'TF-IDF' ? 'active' : ''} onClick={() => handleMethodChange('TF-IDF')}>TF-IDF</button>
+              <button
+                className={method === 'RAG' ? 'active rag-btn' : 'rag-btn'}
+                onClick={() => handleMethodChange('RAG')}
+              >
+                RAG
+              </button>
             </div>
+          </div>
 
-            <div className="method-toggle">
-              <span className="method-label">search method</span>
-              <div className="toggle-buttons">
-                <button className={method === 'SVD' ? 'active' : ''} onClick={() => handleMethodChange('SVD')}>SVD</button>
-                <button className={method === 'TF-IDF' ? 'active' : ''} onClick={() => handleMethodChange('TF-IDF')}>TF-IDF</button>
-                <button
-                  className={method === 'RAG' ? 'active rag-btn' : 'rag-btn'}
-                  onClick={() => handleMethodChange('RAG')}
-                >
-                  RAG
-                </button>
-              </div>
-            </div>
+          <div className="input-box" onClick={() => document.getElementById('search-input')?.focus()}>
+            <img src={SearchIcon} alt="search" />
+            <input
+              id="search-input"
+              placeholder={method === 'RAG' ? 'Describe your situation for an AI verdict…' : 'Search for an r/AITA post!'}
+              value={searchTerm}
+              onChange={e => {
+                const v = e.target.value
+                setSearchTerm(v)
+                if (method !== 'RAG') {
+                  if (v.trim() === '') { setPosts([]); setRag(RAG_IDLE) }
+                  else runIrSearch(v, method, verdictFilter)
+                }
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleSearch(searchTerm)
+              }}
+            />
           </div>
 
           {/* Verdict filter — only for IR methods */}
@@ -315,6 +341,7 @@ function App(): JSX.Element {
             </div>
           )}
 
+
           {/* ── Side-by-side comparison (RAG once reranking is done) ── */}
           {showComparison ? (
             <div className="rerank-comparison">
@@ -322,6 +349,7 @@ function App(): JSX.Element {
                 <div className="rerank-col-header">SVD Ranking</div>
                 {posts.slice(0, 10).map((post, i) => (
                   <div key={post.id} className="rank-card">
+                    <div className="post-sub-id">Submission ID: {post.submission_id}</div>
                     <div className="rank-card-header">
                       <span className="rank-num">#{i + 1}</span>
                       {post.verdict && (
@@ -362,9 +390,10 @@ function App(): JSX.Element {
               </div>
 
               <div className="rerank-col">
-                <div className="rerank-col-header">TF-IDF Re-rank</div>
+                <div className="rerank-col-header">LLM Re-rank</div>
                 {rerankedPosts.map((post, i) => (
                   <div key={post.id} className="rank-card">
+                    <div className="post-sub-id">Submission ID: {post.submission_id}</div>
                     <div className="rank-card-header">
                       <span className="rank-num">#{i + 1}</span>
                       {post.original_rank !== undefined && (
@@ -382,9 +411,7 @@ function App(): JSX.Element {
                     </div>
                     <div className="rank-card-title">{post.title}</div>
                     <div className="rank-card-stats">
-                      <span title="TF-IDF cosine similarity between your original query and this post (0–1)">tfidf: {post.tfidf_similarity?.toFixed(3)}</span>
-                      {' · '}
-                      <span title="Original rank from SVD retrieval before re-ranking">was #{post.original_rank}</span>
+                      <span title="Original rank from SVD retrieval before re-ranking">was #{post.original_rank} in SVD</span>
                     </div>
                     {post.rerank_reason && (
                       <div className="rerank-reason">{post.rerank_reason}</div>
@@ -410,6 +437,7 @@ function App(): JSX.Element {
 
                   return (
                     <div key={post.id} className="episode-item">
+                      <div className="post-sub-id">Submission ID: {post.submission_id}</div>
                       {post.verdict && (
                         <span
                           className="verdict-badge"
