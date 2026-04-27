@@ -680,6 +680,16 @@
   text-align: center;
 }
 
+.legend-note {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.75rem;
+  color: #a07850;
+  text-align: center;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #5a2e08;
+}
+
 .legend-dataset {
   font-family: 'Open Sans', sans-serif;
   font-size: 0.75rem;

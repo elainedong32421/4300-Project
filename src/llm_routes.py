@@ -25,11 +25,15 @@ _REWRITE_SYSTEM = (
 )
 
 _SYNTHESIS_SYSTEM = (
-    "You are an AITA verdict assistant. You are given a user's situation and retrieved similar "
-    "Reddit AITA posts from the database. Structure your response in exactly this format:\n\n"
+    "You are an AITA verdict assistant. You are given a user's situation and a ranked list of "
+    "similar Reddit AITA posts retrieved from the database — ordered from most to least relevant. "
+    "Structure your response in exactly this format:\n\n"
     "**Verdict: [NTA / YTA / ESH / NAH]**\n"
-    "[2-3 sentences explaining why, referencing patterns from the retrieved posts. "
-    "Be direct and match Reddit's tone. Do NOT invent posts.]\n\n"
+    "[2-3 sentences explaining why. You MUST directly cite at least 2 of the retrieved posts by "
+    "referring to their title or specific situation (e.g. 'In Post #1, where someone refused to pay "
+    "for a sibling's wedding, the verdict was NTA because...'). "
+    "Draw your reasoning from what those specific posts show. "
+    "Be direct and match Reddit's tone. Do NOT invent posts not in the list.]\n\n"
     "**Example prompt:** \"[Write a clear, specific version of the user's situation reworded "
     "as a good AITA-style question — third-person, concrete details, under 30 words — "
     "that would retrieve even better results from the database.]\""
@@ -134,17 +138,18 @@ def register_llm_search_route(app, json_search):
         # Step 3 — LLM re-rank top 10 by semantic relevance
         reranked = _llm_rerank(client, user_query, ir_results[:10])
 
-        # Step 4 — Verdict synthesis
+        # Step 4 — Verdict synthesis (use reranked order so most relevant posts are cited first)
+        context_posts = reranked if reranked else ir_results[:10]
         posts_context = "\n\n".join(
-            f"Post {i+1} [{r.get('verdict', 'UNKNOWN')}]: {r['title']}\n{(r.get('selftext') or '')[:300]}"
-            for i, r in enumerate(ir_results)
+            f"Post #{i+1} [{r.get('verdict', 'UNKNOWN')}]: {r['title']}\n{(r.get('selftext') or '')[:500]}"
+            for i, r in enumerate(context_posts)
         ) or "No relevant posts found."
 
         synthesis_resp = client.chat([
             {"role": "system", "content": _SYNTHESIS_SYSTEM},
             {"role": "user", "content": (
                 f"User's situation:\n{user_query}\n\n"
-                f"Retrieved AITA posts:\n{posts_context}"
+                f"Retrieved AITA posts (ranked by relevance):\n{posts_context}"
             )},
         ])
         llm_answer = (synthesis_resp.get("content") or "").strip()
@@ -219,16 +224,17 @@ def register_llm_search_route(app, json_search):
 
             yield f"data: {json.dumps({'reranked_results': reranked})}\n\n"
 
-            # Step 4 — synthesize verdict (try streaming, fall back to blocking)
+            # Step 4 — synthesize verdict using reranked order so most relevant posts appear first
+            context_posts = reranked if reranked else ir_results[:10]
             posts_context = "\n\n".join(
-                f"Post {i+1} [{r.get('verdict', 'UNKNOWN')}]: {r['title']}\n{(r.get('selftext') or '')[:300]}"
-                for i, r in enumerate(ir_results)
+                f"Post #{i+1} [{r.get('verdict', 'UNKNOWN')}]: {r['title']}\n{(r.get('selftext') or '')[:500]}"
+                for i, r in enumerate(context_posts)
             )
             synthesis_messages = [
                 {"role": "system", "content": _SYNTHESIS_SYSTEM},
                 {"role": "user", "content": (
                     f"User's situation:\n{user_query}\n\n"
-                    f"Retrieved AITA posts:\n{posts_context}"
+                    f"Retrieved AITA posts (ranked by relevance):\n{posts_context}"
                 )},
             ]
 

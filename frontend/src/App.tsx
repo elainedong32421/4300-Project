@@ -227,6 +227,9 @@ function App(): JSX.Element {
             <span className="legend-desc">LLM-powered: rewrites your query, retrieves the top posts, re-ranks them semantically, and generates a personalized AITA verdict.</span>
           </div>
         </div>
+        <div className="legend-note">
+          <strong>Net Votes</strong> = Upvotes − Downvotes
+        </div>
         <div className="legend-dataset">
           To read a full post: copy the <strong>Submission ID</strong> from any result, then Ctrl+F in the{' '}
           <a href="https://docs.google.com/spreadsheets/d/1QMzffAcpEp_nJT9DzdrBchVh7rS2qXAFPqaO5-WDaqc/edit?usp=sharing" target="_blank" rel="noreferrer">
@@ -383,7 +386,7 @@ function App(): JSX.Element {
                     <div className="rank-card-stats">
                       <span title="Cosine similarity between query and post in SVD latent space (0–1)">sim: {post.similarity?.toFixed(3)}</span>
                       {' · '}
-                      <span title="Reddit upvote score at time of collection">score: {post.score}</span>
+                      <span title="Net Votes = Upvotes − Downvotes at time of collection">Net Votes: {post.score}</span>
                     </div>
                   </div>
                 ))}
